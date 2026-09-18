@@ -78,7 +78,7 @@
   .tab-btn.active.regels { border-color: var(--gold); color: var(--gold); }
 
   .regels-block {
-    margin-bottom: 20px;
+    margin-bottom: 24px;
   }
   .regels-title {
     font-weight: 700;
@@ -87,35 +87,55 @@
     padding-bottom: 4px;
     border-bottom: 2px solid var(--border);
   }
-  .regels-item {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.88rem;
-  }
-  .regels-item .naam {
-    font-weight: 600;
-    min-width: 140px;
-  }
-  .regels-item .uitleg {
+  .regels-hint {
+    font-size: 0.78rem;
     color: var(--muted);
-    flex: 1;
+    margin-bottom: 16px;
+    font-style: italic;
   }
-  @media (max-width: 480px) {
-    .regels-item {
-      flex-direction: column;
-      gap: 2px;
-    }
-    .regels-item .naam {
-      min-width: 0;
-    }
+  .regels-item-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .regels-item-edit .regel-nr {
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .regels-item-edit input {
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+  .regels-item-edit input.regel-naam-input {
+    font-weight: 600;
+  }
+  .regels-item-edit input.regel-uitleg-input {
+    color: var(--muted);
   }
   .regels-bonus {
-    margin-top: 6px;
+    margin-top: 10px;
     font-size: 0.85rem;
     color: var(--muted);
+  }
+  .regels-reset-btn {
+    margin-top: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--btn-bg);
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: pointer;
   }
 
   .panel { display: none; }
@@ -295,7 +315,7 @@
 </div>
 
 <script>
-const GAMES = {
+const DEFAULT_GAMES = {
   senioren: [
     { naam: "Vliegtuigjes", regel: "Vak dichtbij = 1pt, verder/lastiger vak = 3pt" },
     { naam: "Blikjes op volgorde", regel: "10pt bij 1e poging goed, -1pt per extra poging" },
@@ -328,7 +348,7 @@ const DEFAULT_NAMES = {
   junioren: ["Melika", "Daniela", "Indy", "Kyra", "Julie", "Milou", "Romy", "Farah", "Robin", "Wesley", "Casper", "Jens", "Ilia", "Jarno", "Roel", "Ryan", "Kaeden"]
 };
 
-const BONUS = {
+const DEFAULT_BONUS = {
   senioren: [
     { naam: "Wc-rol mikken in emmer", uitleg: "Gooi een wc-rol (of proppen) in een emmer vanaf een afstand." },
     { naam: "Zinken of drijven", uitleg: "Schat van verschillende voorwerpen of ze zinken of blijven drijven, en test het daarna." }
@@ -346,6 +366,8 @@ const BONUS = {
 const KLASSE_LABELS = { senioren: "Senioren", volwassenen: "Volwassenen", junioren: "Junioren" };
 
 let state = {};
+let regels = {};
+let bonusRegels = {};
 let currentTab = "senioren";
 
 function loadState() {
@@ -360,10 +382,10 @@ function loadState() {
   }
   // eerste keer: vul met standaard namen, alle scores op 0
   state = {};
-  for (const cls of Object.keys(GAMES)) {
+  for (const cls of Object.keys(DEFAULT_GAMES)) {
     state[cls] = {};
     for (const name of DEFAULT_NAMES[cls]) {
-      state[cls][name] = GAMES[cls].map(() => 0);
+      state[cls][name] = DEFAULT_GAMES[cls].map(() => 0);
     }
   }
 }
@@ -374,6 +396,75 @@ function saveState() {
   } catch (e) {
     console.error("Kon niet opslaan:", e);
   }
+}
+
+function cloneDefaultRegels() {
+  const g = {};
+  for (const cls of Object.keys(DEFAULT_GAMES)) {
+    g[cls] = DEFAULT_GAMES[cls].map(item => ({ ...item }));
+  }
+  const b = {};
+  for (const cls of Object.keys(DEFAULT_BONUS)) {
+    b[cls] = DEFAULT_BONUS[cls].map(item => ({ ...item }));
+  }
+  return { g, b };
+}
+
+function loadRegels() {
+  const defaults = cloneDefaultRegels();
+  try {
+    const raw = localStorage.getItem("zalmendag_scorebord_regels_v1");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      regels = parsed.regels || {};
+      bonusRegels = parsed.bonus || {};
+      // vul ontbrekende klassen/items aan met standaardwaarden
+      for (const cls of Object.keys(DEFAULT_GAMES)) {
+        if (!regels[cls]) regels[cls] = defaults.g[cls];
+        else DEFAULT_GAMES[cls].forEach((item, i) => {
+          if (!regels[cls][i]) regels[cls][i] = { ...item };
+        });
+      }
+      for (const cls of Object.keys(DEFAULT_BONUS)) {
+        if (!bonusRegels[cls]) bonusRegels[cls] = defaults.b[cls];
+        else DEFAULT_BONUS[cls].forEach((item, i) => {
+          if (!bonusRegels[cls][i]) bonusRegels[cls][i] = { ...item };
+        });
+      }
+      return;
+    }
+  } catch (e) {
+    console.error("Kon regels niet laden:", e);
+  }
+  regels = defaults.g;
+  bonusRegels = defaults.b;
+}
+
+function saveRegels() {
+  try {
+    localStorage.setItem("zalmendag_scorebord_regels_v1", JSON.stringify({ regels, bonus: bonusRegels }));
+  } catch (e) {
+    console.error("Kon regels niet opslaan:", e);
+  }
+}
+
+function updateRegelVeld(cls, gi, veld, waarde) {
+  regels[cls][gi][veld] = waarde;
+  saveRegels();
+}
+
+function updateBonusVeld(cls, bi, veld, waarde) {
+  bonusRegels[cls][bi][veld] = waarde;
+  saveRegels();
+}
+
+function resetRegelsKlasse(cls) {
+  if (!confirm("Spelnamen en beschrijvingen van " + KLASSE_LABELS[cls] + " terugzetten naar standaard?")) return;
+  const defaults = cloneDefaultRegels();
+  regels[cls] = defaults.g[cls];
+  bonusRegels[cls] = defaults.b[cls];
+  saveRegels();
+  render();
 }
 
 function switchTab(cls) {
@@ -389,7 +480,7 @@ function addPerson(cls) {
   const name = input.value.trim();
   if (!name) return;
   if (!state[cls][name]) {
-    state[cls][name] = GAMES[cls].map(() => 0);
+    state[cls][name] = regels[cls].map(() => 0);
   }
   input.value = "";
   saveState();
@@ -412,7 +503,7 @@ function changeScore(cls, name, gameIdx, delta) {
 function resetClass() {
   if (!confirm("Alle scores in " + currentTab + " terugzetten naar 0?")) return;
   for (const name of Object.keys(state[currentTab])) {
-    state[currentTab][name] = GAMES[currentTab].map(() => 0);
+    state[currentTab][name] = regels[currentTab].map(() => 0);
   }
   saveState();
   render();
@@ -420,9 +511,9 @@ function resetClass() {
 
 function resetAll() {
   if (!confirm("ALLE scores van ALLE klassen terugzetten naar 0?")) return;
-  for (const cls of Object.keys(GAMES)) {
+  for (const cls of Object.keys(DEFAULT_GAMES)) {
     for (const name of Object.keys(state[cls])) {
-      state[cls][name] = GAMES[cls].map(() => 0);
+      state[cls][name] = regels[cls].map(() => 0);
     }
   }
   saveState();
@@ -437,7 +528,7 @@ function render() {
   const container = document.getElementById("panels");
   container.innerHTML = "";
 
-  for (const cls of Object.keys(GAMES)) {
+  for (const cls of Object.keys(DEFAULT_GAMES)) {
     const panel = document.createElement("div");
     panel.className = "panel" + (cls === currentTab ? " active" : "");
     panel.id = "panel-" + cls;
@@ -477,17 +568,31 @@ function render() {
 
         const grid = document.createElement("div");
         grid.className = "games-grid";
-        GAMES[cls].forEach((game, gi) => {
+        regels[cls].forEach((game, gi) => {
           const row = document.createElement("div");
           row.className = "game-row";
-          row.innerHTML = `
-            <div class="game-label"><strong>${game.naam}</strong><br><span style="font-size:0.7rem;">${game.regel}</span></div>
-            <div class="game-controls">
-              <button onclick="changeScore('${cls}','${name}',${gi},-1)">–</button>
-              <div class="val">${state[cls][name][gi] || 0}</div>
-              <button onclick="changeScore('${cls}','${name}',${gi},1)">+</button>
-            </div>
+
+          const label = document.createElement("div");
+          label.className = "game-label";
+          const strong = document.createElement("strong");
+          strong.textContent = game.naam;
+          label.appendChild(strong);
+          label.appendChild(document.createElement("br"));
+          const span = document.createElement("span");
+          span.style.fontSize = "0.7rem";
+          span.textContent = game.regel;
+          label.appendChild(span);
+          row.appendChild(label);
+
+          const controls = document.createElement("div");
+          controls.className = "game-controls";
+          controls.innerHTML = `
+            <button onclick="changeScore('${cls}','${name}',${gi},-1)">–</button>
+            <div class="val">${state[cls][name][gi] || 0}</div>
+            <button onclick="changeScore('${cls}','${name}',${gi},1)">+</button>
           `;
+          row.appendChild(controls);
+
           grid.appendChild(row);
         });
         card.appendChild(grid);
@@ -498,12 +603,17 @@ function render() {
     container.appendChild(panel);
   }
 
-  // Spelregels-pagina (statisch overzicht)
+  // Spelregels-pagina (bewerkbaar overzicht)
   const regelsPanel = document.createElement("div");
   regelsPanel.className = "panel" + (currentTab === "regels" ? " active" : "");
   regelsPanel.id = "panel-regels";
 
-  Object.keys(GAMES).forEach(cls => {
+  const hint = document.createElement("div");
+  hint.className = "regels-hint";
+  hint.textContent = "Tik in een veld om de naam of beschrijving van een spel aan te passen. Wijzigingen worden automatisch bewaard op dit toestel.";
+  regelsPanel.appendChild(hint);
+
+  Object.keys(DEFAULT_GAMES).forEach(cls => {
     const block = document.createElement("div");
     block.className = "regels-block";
     const title = document.createElement("div");
@@ -511,10 +621,29 @@ function render() {
     title.textContent = KLASSE_LABELS[cls];
     block.appendChild(title);
 
-    GAMES[cls].forEach((game, gi) => {
+    regels[cls].forEach((game, gi) => {
       const item = document.createElement("div");
-      item.className = "regels-item";
-      item.innerHTML = `<div class="naam">${gi + 1}. ${game.naam}</div><div class="uitleg">${game.regel}</div>`;
+      item.className = "regels-item-edit";
+
+      const nr = document.createElement("div");
+      nr.className = "regel-nr";
+      nr.textContent = "Spel " + (gi + 1);
+      item.appendChild(nr);
+
+      const naamInput = document.createElement("input");
+      naamInput.className = "regel-naam-input";
+      naamInput.type = "text";
+      naamInput.value = game.naam;
+      naamInput.addEventListener("input", () => updateRegelVeld(cls, gi, "naam", naamInput.value));
+      item.appendChild(naamInput);
+
+      const uitlegInput = document.createElement("input");
+      uitlegInput.className = "regel-uitleg-input";
+      uitlegInput.type = "text";
+      uitlegInput.value = game.regel;
+      uitlegInput.addEventListener("input", () => updateRegelVeld(cls, gi, "regel", uitlegInput.value));
+      item.appendChild(uitlegInput);
+
       block.appendChild(item);
     });
 
@@ -523,12 +652,37 @@ function render() {
     bonusTitle.innerHTML = "<strong>Bonusspellen (bij tijd over):</strong>";
     block.appendChild(bonusTitle);
 
-    BONUS[cls].forEach(b => {
+    bonusRegels[cls].forEach((b, bi) => {
       const item = document.createElement("div");
-      item.className = "regels-item";
-      item.innerHTML = `<div class="naam">${b.naam}</div><div class="uitleg">${b.uitleg}</div>`;
+      item.className = "regels-item-edit";
+
+      const nr = document.createElement("div");
+      nr.className = "regel-nr";
+      nr.textContent = "Bonusspel " + (bi + 1);
+      item.appendChild(nr);
+
+      const naamInput = document.createElement("input");
+      naamInput.className = "regel-naam-input";
+      naamInput.type = "text";
+      naamInput.value = b.naam;
+      naamInput.addEventListener("input", () => updateBonusVeld(cls, bi, "naam", naamInput.value));
+      item.appendChild(naamInput);
+
+      const uitlegInput = document.createElement("input");
+      uitlegInput.className = "regel-uitleg-input";
+      uitlegInput.type = "text";
+      uitlegInput.value = b.uitleg;
+      uitlegInput.addEventListener("input", () => updateBonusVeld(cls, bi, "uitleg", uitlegInput.value));
+      item.appendChild(uitlegInput);
+
       block.appendChild(item);
     });
+
+    const resetBtn = document.createElement("button");
+    resetBtn.className = "regels-reset-btn";
+    resetBtn.textContent = "↺ Herstel standaardteksten voor " + KLASSE_LABELS[cls];
+    resetBtn.onclick = () => resetRegelsKlasse(cls);
+    block.appendChild(resetBtn);
 
     regelsPanel.appendChild(block);
   });
@@ -537,6 +691,7 @@ function render() {
 }
 
 loadState();
+loadRegels();
 render();
 </script>
 
