@@ -78,7 +78,7 @@
   .tab-btn.active.regels { border-color: var(--gold); color: var(--gold); }
 
   .regels-block {
-    margin-bottom: 24px;
+    margin-bottom: 20px;
   }
   .regels-title {
     font-weight: 700;
@@ -93,6 +93,35 @@
     margin-bottom: 16px;
     font-style: italic;
   }
+
+  /* leesweergave */
+  .regels-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.88rem;
+  }
+  .regels-item .naam {
+    font-weight: 600;
+    min-width: 140px;
+  }
+  .regels-item .uitleg {
+    color: var(--muted);
+    flex: 1;
+  }
+  @media (max-width: 480px) {
+    .regels-item {
+      flex-direction: column;
+      gap: 2px;
+    }
+    .regels-item .naam {
+      min-width: 0;
+    }
+  }
+
+  /* bewerkweergave */
   .regels-item-edit {
     display: flex;
     flex-direction: column;
@@ -122,6 +151,7 @@
   .regels-item-edit input.regel-uitleg-input {
     color: var(--muted);
   }
+
   .regels-bonus {
     margin-top: 10px;
     font-size: 0.85rem;
@@ -136,6 +166,24 @@
     color: var(--text);
     font-size: 0.8rem;
     cursor: pointer;
+  }
+  .regels-fab {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 13px 20px;
+    border-radius: 30px;
+    border: none;
+    background: var(--gold);
+    color: #2a2200;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.28);
+    z-index: 40;
+  }
+  .regels-fab-spacer {
+    height: 70px;
   }
 
   .panel { display: none; }
@@ -369,6 +417,7 @@ let state = {};
 let regels = {};
 let bonusRegels = {};
 let currentTab = "senioren";
+let regelsEditMode = false;
 
 function loadState() {
   try {
@@ -450,12 +499,18 @@ function saveRegels() {
 
 function updateRegelVeld(cls, gi, veld, waarde) {
   regels[cls][gi][veld] = waarde;
-  saveRegels();
 }
 
 function updateBonusVeld(cls, bi, veld, waarde) {
   bonusRegels[cls][bi][veld] = waarde;
-  saveRegels();
+}
+
+function toggleRegelsEditMode() {
+  if (regelsEditMode) {
+    saveRegels();
+  }
+  regelsEditMode = !regelsEditMode;
+  render();
 }
 
 function resetRegelsKlasse(cls) {
@@ -603,14 +658,16 @@ function render() {
     container.appendChild(panel);
   }
 
-  // Spelregels-pagina (bewerkbaar overzicht)
+  // Spelregels-pagina
   const regelsPanel = document.createElement("div");
   regelsPanel.className = "panel" + (currentTab === "regels" ? " active" : "");
   regelsPanel.id = "panel-regels";
 
   const hint = document.createElement("div");
   hint.className = "regels-hint";
-  hint.textContent = "Tik in een veld om de naam of beschrijving van een spel aan te passen. Wijzigingen worden automatisch bewaard op dit toestel.";
+  hint.textContent = regelsEditMode
+    ? "Pas de velden aan en tik rechtsonder op Opslaan."
+    : "Tik rechtsonder op Aanpassen om spelregels te bewerken.";
   regelsPanel.appendChild(hint);
 
   Object.keys(DEFAULT_GAMES).forEach(cls => {
@@ -621,71 +678,116 @@ function render() {
     title.textContent = KLASSE_LABELS[cls];
     block.appendChild(title);
 
-    regels[cls].forEach((game, gi) => {
-      const item = document.createElement("div");
-      item.className = "regels-item-edit";
+    if (!regelsEditMode) {
+      regels[cls].forEach((game, gi) => {
+        const item = document.createElement("div");
+        item.className = "regels-item";
+        const naam = document.createElement("div");
+        naam.className = "naam";
+        naam.textContent = (gi + 1) + ". " + game.naam;
+        const uitleg = document.createElement("div");
+        uitleg.className = "uitleg";
+        uitleg.textContent = game.regel;
+        item.appendChild(naam);
+        item.appendChild(uitleg);
+        block.appendChild(item);
+      });
 
-      const nr = document.createElement("div");
-      nr.className = "regel-nr";
-      nr.textContent = "Spel " + (gi + 1);
-      item.appendChild(nr);
+      const bonusTitle = document.createElement("div");
+      bonusTitle.className = "regels-bonus";
+      bonusTitle.innerHTML = "<strong>Bonusspellen (bij tijd over):</strong>";
+      block.appendChild(bonusTitle);
 
-      const naamInput = document.createElement("input");
-      naamInput.className = "regel-naam-input";
-      naamInput.type = "text";
-      naamInput.value = game.naam;
-      naamInput.addEventListener("input", () => updateRegelVeld(cls, gi, "naam", naamInput.value));
-      item.appendChild(naamInput);
+      bonusRegels[cls].forEach(b => {
+        const item = document.createElement("div");
+        item.className = "regels-item";
+        const naam = document.createElement("div");
+        naam.className = "naam";
+        naam.textContent = b.naam;
+        const uitleg = document.createElement("div");
+        uitleg.className = "uitleg";
+        uitleg.textContent = b.uitleg;
+        item.appendChild(naam);
+        item.appendChild(uitleg);
+        block.appendChild(item);
+      });
+    } else {
+      regels[cls].forEach((game, gi) => {
+        const item = document.createElement("div");
+        item.className = "regels-item-edit";
 
-      const uitlegInput = document.createElement("input");
-      uitlegInput.className = "regel-uitleg-input";
-      uitlegInput.type = "text";
-      uitlegInput.value = game.regel;
-      uitlegInput.addEventListener("input", () => updateRegelVeld(cls, gi, "regel", uitlegInput.value));
-      item.appendChild(uitlegInput);
+        const nr = document.createElement("div");
+        nr.className = "regel-nr";
+        nr.textContent = "Spel " + (gi + 1);
+        item.appendChild(nr);
 
-      block.appendChild(item);
-    });
+        const naamInput = document.createElement("input");
+        naamInput.className = "regel-naam-input";
+        naamInput.type = "text";
+        naamInput.value = game.naam;
+        naamInput.addEventListener("input", () => updateRegelVeld(cls, gi, "naam", naamInput.value));
+        item.appendChild(naamInput);
 
-    const bonusTitle = document.createElement("div");
-    bonusTitle.className = "regels-bonus";
-    bonusTitle.innerHTML = "<strong>Bonusspellen (bij tijd over):</strong>";
-    block.appendChild(bonusTitle);
+        const uitlegInput = document.createElement("input");
+        uitlegInput.className = "regel-uitleg-input";
+        uitlegInput.type = "text";
+        uitlegInput.value = game.regel;
+        uitlegInput.addEventListener("input", () => updateRegelVeld(cls, gi, "regel", uitlegInput.value));
+        item.appendChild(uitlegInput);
 
-    bonusRegels[cls].forEach((b, bi) => {
-      const item = document.createElement("div");
-      item.className = "regels-item-edit";
+        block.appendChild(item);
+      });
 
-      const nr = document.createElement("div");
-      nr.className = "regel-nr";
-      nr.textContent = "Bonusspel " + (bi + 1);
-      item.appendChild(nr);
+      const bonusTitle = document.createElement("div");
+      bonusTitle.className = "regels-bonus";
+      bonusTitle.innerHTML = "<strong>Bonusspellen (bij tijd over):</strong>";
+      block.appendChild(bonusTitle);
 
-      const naamInput = document.createElement("input");
-      naamInput.className = "regel-naam-input";
-      naamInput.type = "text";
-      naamInput.value = b.naam;
-      naamInput.addEventListener("input", () => updateBonusVeld(cls, bi, "naam", naamInput.value));
-      item.appendChild(naamInput);
+      bonusRegels[cls].forEach((b, bi) => {
+        const item = document.createElement("div");
+        item.className = "regels-item-edit";
 
-      const uitlegInput = document.createElement("input");
-      uitlegInput.className = "regel-uitleg-input";
-      uitlegInput.type = "text";
-      uitlegInput.value = b.uitleg;
-      uitlegInput.addEventListener("input", () => updateBonusVeld(cls, bi, "uitleg", uitlegInput.value));
-      item.appendChild(uitlegInput);
+        const nr = document.createElement("div");
+        nr.className = "regel-nr";
+        nr.textContent = "Bonusspel " + (bi + 1);
+        item.appendChild(nr);
 
-      block.appendChild(item);
-    });
+        const naamInput = document.createElement("input");
+        naamInput.className = "regel-naam-input";
+        naamInput.type = "text";
+        naamInput.value = b.naam;
+        naamInput.addEventListener("input", () => updateBonusVeld(cls, bi, "naam", naamInput.value));
+        item.appendChild(naamInput);
 
-    const resetBtn = document.createElement("button");
-    resetBtn.className = "regels-reset-btn";
-    resetBtn.textContent = "↺ Herstel standaardteksten voor " + KLASSE_LABELS[cls];
-    resetBtn.onclick = () => resetRegelsKlasse(cls);
-    block.appendChild(resetBtn);
+        const uitlegInput = document.createElement("input");
+        uitlegInput.className = "regel-uitleg-input";
+        uitlegInput.type = "text";
+        uitlegInput.value = b.uitleg;
+        uitlegInput.addEventListener("input", () => updateBonusVeld(cls, bi, "uitleg", uitlegInput.value));
+        item.appendChild(uitlegInput);
+
+        block.appendChild(item);
+      });
+
+      const resetBtn = document.createElement("button");
+      resetBtn.className = "regels-reset-btn";
+      resetBtn.textContent = "↺ Herstel standaardteksten voor " + KLASSE_LABELS[cls];
+      resetBtn.onclick = () => resetRegelsKlasse(cls);
+      block.appendChild(resetBtn);
+    }
 
     regelsPanel.appendChild(block);
   });
+
+  const spacer = document.createElement("div");
+  spacer.className = "regels-fab-spacer";
+  regelsPanel.appendChild(spacer);
+
+  const fab = document.createElement("button");
+  fab.className = "regels-fab";
+  fab.textContent = regelsEditMode ? "💾 Opslaan" : "✏️ Aanpassen";
+  fab.onclick = toggleRegelsEditMode;
+  regelsPanel.appendChild(fab);
 
   container.appendChild(regelsPanel);
 }
